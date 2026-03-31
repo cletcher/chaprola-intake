@@ -1,0 +1,133 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="chaprola-site-key" content="site_5aeb385c0585cb22b8d3fa3df7609a5332c607e3e2759a8e138bafea53d6cf45">
+    <title>Patient Intake - FHIR Demo</title>
+    <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+    <div class="container">
+        <header>
+            <h1>Patient Intake Form</h1>
+            <p class="subtitle">FHIR Round-Trip Demonstration</p>
+        </header>
+
+        <div id="form-view" class="view active">
+            <form id="intake-form">
+                <section class="form-section">
+                    <h2>Personal Information</h2>
+
+                    <div class="form-group">
+                        <label for="firstName">First Name *</label>
+                        <input type="text" id="firstName" name="firstName" required>
+                    </div>
+
+                    <div class="form-group">
+                        <label for="lastName">Last Name *</label>
+                        <input type="text" id="lastName" name="lastName" required>
+                    </div>
+
+                    <div class="form-group">
+                        <label for="dateOfBirth">Date of Birth *</label>
+                        <input type="date" id="dateOfBirth" name="dateOfBirth" required>
+                    </div>
+
+                    <div class="form-group">
+                        <label for="gender">Gender *</label>
+                        <select id="gender" name="gender" required>
+                            <option value="">Select...</option>
+                            <option value="male">Male</option>
+                            <option value="female">Female</option>
+                            <option value="other">Other</option>
+                            <option value="unknown">Unknown</option>
+                        </select>
+                    </div>
+                </section>
+
+                <section class="form-section">
+                    <h2>Contact Information</h2>
+
+                    <div class="form-group">
+                        <label for="phone">Phone Number</label>
+                        <input type="tel" id="phone" name="phone" placeholder="555-123-4567">
+                    </div>
+
+                    <div class="form-group">
+                        <label for="email">Email</label>
+                        <input type="email" id="email" name="email" placeholder="patient@example.com">
+                    </div>
+
+                    <div class="form-group">
+                        <label for="address">Street Address</label>
+                        <input type="text" id="address" name="address" placeholder="123 Main St">
+                    </div>
+
+                    <div class="form-group">
+                        <label for="city">City</label>
+                        <input type="text" id="city" name="city" placeholder="Springfield">
+                    </div>
+
+                    <div class="form-group">
+                        <label for="state">State</label>
+                        <input type="text" id="state" name="state" placeholder="IL" maxlength="2">
+                    </div>
+
+                    <div class="form-group">
+                        <label for="zipCode">ZIP Code</label>
+                        <input type="text" id="zipCode" name="zipCode" placeholder="62701" pattern="[0-9]{5}">
+                    </div>
+                </section>
+
+                <section class="form-section">
+                    <h2>Medical Information</h2>
+
+                    <div class="form-group">
+                        <label for="allergies">Known Allergies</label>
+                        <textarea id="allergies" name="allergies" rows="3" placeholder="List any known allergies (e.g., penicillin, peanuts)"></textarea>
+                    </div>
+
+                    <div class="form-group">
+                        <label for="medications">Current Medications</label>
+                        <textarea id="medications" name="medications" rows="3" placeholder="List current medications and dosages"></textarea>
+                    </div>
+
+                    <div class="form-group">
+                        <label for="conditions">Medical Conditions</label>
+                        <textarea id="conditions" name="conditions" rows="3" placeholder="List any chronic conditions or diagnoses"></textarea>
+                    </div>
+                </section>
+
+                <div class="form-actions">
+                    <button type="submit" class="btn btn-primary">Submit Intake</button>
+                    <button type="button" class="btn btn-secondary" id="load-sample">Load Sample Data</button>
+                </div>
+
+                <div id="form-message" class="message"></div>
+            </form>
+        </div>
+
+        <div id="fhir-view" class="view">
+            <div class="view-header">
+                <h2>FHIR Patient Resource</h2>
+                <button class="btn btn-secondary" id="back-to-form">Back to Form</button>
+            </div>
+
+            <div class="fhir-info">
+                <p>This is the FHIR-formatted patient data stored in Chaprola and retrieved via query.</p>
+            </div>
+
+            <div id="fhir-output">
+                <pre id="fhir-json"></pre>
+            </div>
+
+            <div class="view-actions">
+                <button class="btn btn-primary" id="new-patient">New Patient</button>
+            </div>
+        </div>
+    </div>
+
+    <script src="app.js"></script>
+</body>
+</html>
