@@ -103,6 +103,12 @@ async function handleSubmit(e) {
 }
 
 function collectFormData() {
+    // Medical fields (allergies, medications, conditions) intentionally
+    // omitted — real FHIR Patient resources don't carry those anyway
+    // (they belong on AllergyIntolerance / MedicationStatement /
+    // Condition resources), and the prior form fields were silently
+    // discarded on submit. Keeping the form scope to what the declared
+    // FHIR Patient round-trip actually stores.
     return {
         firstName: document.getElementById('firstName').value,
         lastName: document.getElementById('lastName').value,
@@ -113,10 +119,7 @@ function collectFormData() {
         address: document.getElementById('address').value,
         city: document.getElementById('city').value,
         state: document.getElementById('state').value,
-        zipCode: document.getElementById('zipCode').value,
-        allergies: document.getElementById('allergies').value,
-        medications: document.getElementById('medications').value,
-        conditions: document.getElementById('conditions').value
+        zipCode: document.getElementById('zipCode').value
     };
 }
 
@@ -163,28 +166,32 @@ function convertToFHIR(formData) {
 }
 
 async function importFHIRData(fhirRecord) {
-    // Site keys authorize by origin + endpoint allowlist. The correct
-    // header name for site-key auth on the Chaprola API is Authorization:
-    // Bearer <site_...>. The previous "X-Site-Key" header was rejected by
-    // the API Gateway's CORS preflight, producing the "CORS blocks all
-    // API calls" pattern Vogel reported. Aligning with expenses + inventory.
-    const headers = {
-        'Content-Type': 'application/json'
-    };
-    if (SITE_KEY) {
-        headers['Authorization'] = 'Bearer ' + SITE_KEY;
-    }
-
-    const response = await fetch(`${API_BASE}/insert-record`, {
-        method: 'POST',
-        headers: headers,
-        body: JSON.stringify({
-            userid: USERNAME,
-            project: PROJECT,
-            file: 'PATIENTS',
-            record: fhirRecord
-        })
+    // Prefer chaprolaAuth.fetch when logged in so the user's chp_user_
+    // Bearer travels on writes (matches loadAndShowFHIR + loadRoster).
+    // Falls back to site-key Bearer for anonymous demo-mode submits.
+    const body = JSON.stringify({
+        userid: USERNAME,
+        project: PROJECT,
+        file: 'PATIENTS',
+        record: fhirRecord
     });
+
+    let response;
+    if (window.chaprolaAuth && window.chaprolaAuth.fetch && window.chaprolaAuth.isAuthenticated && window.chaprolaAuth.isAuthenticated()) {
+        response = await window.chaprolaAuth.fetch(`${API_BASE}/insert-record`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: body
+        });
+    } else {
+        const headers = { 'Content-Type': 'application/json' };
+        if (SITE_KEY) headers['Authorization'] = 'Bearer ' + SITE_KEY;
+        response = await fetch(`${API_BASE}/insert-record`, {
+            method: 'POST',
+            headers: headers,
+            body: body
+        });
+    }
 
     if (!response.ok) {
         const error = await response.json().catch(() => ({}));
