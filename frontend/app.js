@@ -60,9 +60,6 @@ function loadSampleData() {
     document.getElementById('city').value = 'Springfield';
     document.getElementById('state').value = 'IL';
     document.getElementById('zipCode').value = '62701';
-    document.getElementById('allergies').value = 'Penicillin';
-    document.getElementById('medications').value = 'Lisinopril 10mg daily';
-    document.getElementById('conditions').value = 'Hypertension';
 
     showMessage('Sample data loaded', 'info');
 }
