@@ -2,12 +2,22 @@
 const API_BASE = 'https://api.chaprola.org';
 const USERNAME = 'chaprola-intake';
 const PROJECT = 'intake';
+const DEMO_USER_ID = 'demo-user';
 
 // Get site key from page (will be injected after deployment)
 let SITE_KEY = null;
 
 // State
 let currentPatientId = null;
+
+function currentUserId() {
+    const u = window.chaprolaAuth && window.chaprolaAuth.getUser();
+    return (u && u.sub) || DEMO_USER_ID;
+}
+
+function isLoggedIn() {
+    return !!(window.chaprolaAuth && window.chaprolaAuth.getUser());
+}
 
 // Initialize app
 document.addEventListener('DOMContentLoaded', () => {
@@ -110,6 +120,7 @@ function convertToFHIR(formData) {
         resourceType: 'Patient',
         id: currentPatientId,
         active: 'true',
+        user_id: currentUserId(),
         name_0_use: 'official',
         name_0_family: formData.lastName.substring(0, 7),
         name_0_given_0: formData.firstName.substring(0, 4),
@@ -139,20 +150,23 @@ function convertToFHIR(formData) {
 }
 
 async function importFHIRData(fhirRecord) {
+    // Site keys authorize by origin + endpoint allowlist. The correct
+    // header name for site-key auth on the Chaprola API is Authorization:
+    // Bearer <site_...>. The previous "X-Site-Key" header was rejected by
+    // the API Gateway's CORS preflight, producing the "CORS blocks all
+    // API calls" pattern Vogel reported. Aligning with expenses + inventory.
     const headers = {
-        'Content-Type': 'application/json',
-        'X-Username': USERNAME
+        'Content-Type': 'application/json'
     };
-
-    // Add site key
     if (SITE_KEY) {
-        headers['X-Site-Key'] = SITE_KEY;
+        headers['Authorization'] = 'Bearer ' + SITE_KEY;
     }
 
     const response = await fetch(`${API_BASE}/insert-record`, {
         method: 'POST',
         headers: headers,
         body: JSON.stringify({
+            userid: USERNAME,
             project: PROJECT,
             file: 'PATIENTS',
             record: fhirRecord
@@ -160,8 +174,8 @@ async function importFHIRData(fhirRecord) {
     });
 
     if (!response.ok) {
-        const error = await response.json();
-        throw new Error(error.message || 'Failed to insert patient record');
+        const error = await response.json().catch(() => ({}));
+        throw new Error(error.message || error.error || 'Failed to insert patient record');
     }
 
     return response.json();
@@ -220,22 +234,25 @@ async function loadAndShowFHIR() {
     try {
         showMessage('Loading FHIR data from Chaprola...', 'info');
 
-        // Query the data back from Chaprola
+        // Query the data back from Chaprola. See importFHIRData for the
+        // Authorization: Bearer <site_...> header rationale (was X-Site-Key,
+        // which the CORS preflight rejected).
         const headers = {
-            'Content-Type': 'application/json',
-            'X-Username': USERNAME
+            'Content-Type': 'application/json'
         };
 
         if (SITE_KEY) {
-            headers['X-Site-Key'] = SITE_KEY;
+            headers['Authorization'] = 'Bearer ' + SITE_KEY;
         }
 
         const response = await fetch(`${API_BASE}/query`, {
             method: 'POST',
             headers: headers,
             body: JSON.stringify({
+                userid: USERNAME,
                 project: PROJECT,
                 file: 'PATIENTS',
+                where: [{ field: 'user_id', op: 'eq', value: currentUserId() }],
                 limit: 1,
                 order_by: [{field: 'id', dir: 'desc'}]
             })

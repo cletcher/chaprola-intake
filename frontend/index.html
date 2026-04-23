@@ -209,6 +209,28 @@
 })();
 </script>
     <!-- END chp-auth-widget -->
+    <div class="demo-banner" role="alert">
+        <strong>THIS IS A SAMPLE APP.</strong>
+        Do <strong>not</strong> submit real patient data. Any information entered
+        here is stored under a shared development account and is visible to the
+        developer. This is a technical demonstration of FHIR round-trip
+        serialization on Chaprola &mdash; it is not a production medical
+        intake system and has not been HIPAA-audited for this deployment.
+    </div>
+
+    <style>
+        .demo-banner {
+            background: #7f1d1d;
+            color: #fecaca;
+            padding: 0.85rem 1.25rem;
+            margin: 0;
+            border-bottom: 3px solid #dc2626;
+            font: 14px/1.5 -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+            text-align: center;
+        }
+        .demo-banner strong { color: #fff; }
+    </style>
+
     <div class="container">
         <header>
             <h1>Patient Intake Form</h1>
