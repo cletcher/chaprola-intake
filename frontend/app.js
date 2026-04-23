@@ -30,6 +30,15 @@ function setupEventListeners() {
     document.getElementById('load-sample').addEventListener('click', loadSampleData);
     document.getElementById('back-to-form').addEventListener('click', showFormView);
     document.getElementById('new-patient').addEventListener('click', showFormView);
+    const showRosterBtn = document.getElementById('show-roster');
+    if (showRosterBtn) showRosterBtn.addEventListener('click', () => {
+        document.getElementById('form-view').classList.remove('active');
+        document.getElementById('fhir-view').classList.remove('active');
+        document.getElementById('roster-view').classList.add('active');
+        loadRoster();
+    });
+    const backFromRoster = document.getElementById('back-to-form-from-roster');
+    if (backFromRoster) backFromRoster.addEventListener('click', showFormView);
 }
 
 function loadSiteKey() {
@@ -115,23 +124,27 @@ function convertToFHIR(formData) {
     // Generate a unique ID for this patient
     currentPatientId = 'pt-' + Date.now();
 
-    // Create flattened record for Chaprola's fixed-record format
+    // Flattened record for Chaprola's fixed-record format. Column widths
+    // (PATIENTS.F) were /alter-widened 2026-04-23 so full names +
+    // addresses + emails fit without truncation:
+    //   name_0_family: 40, name_0_given_0: 40, address_0_line_0: 60,
+    //   address_0_city: 40, telecom_0_value: 40.
     const record = {
         resourceType: 'Patient',
         id: currentPatientId,
         active: 'true',
         user_id: currentUserId(),
         name_0_use: 'official',
-        name_0_family: formData.lastName.substring(0, 7),
-        name_0_given_0: formData.firstName.substring(0, 4),
-        gender: formData.gender.substring(0, 7),
+        name_0_family: formData.lastName,
+        name_0_given_0: formData.firstName,
+        gender: formData.gender,
         birthDate: formData.dateOfBirth
     };
 
     // Add phone if provided
     if (formData.phone) {
         record.telecom_0_system = 'phone';
-        record.telecom_0_value = formData.phone.substring(0, 12);
+        record.telecom_0_value = formData.phone;
         record.telecom_0_use = 'mobile';
     }
 
@@ -139,8 +152,8 @@ function convertToFHIR(formData) {
     if (formData.address || formData.city || formData.state || formData.zipCode) {
         record.address_0_use = 'home';
         record.address_0_type = 'physical';
-        record.address_0_line_0 = (formData.address || '').substring(0, 11);
-        record.address_0_city = (formData.city || '').substring(0, 9);
+        record.address_0_line_0 = formData.address || '';
+        record.address_0_city = formData.city || '';
         record.address_0_state = (formData.state || '').substring(0, 2);
         record.address_0_postalCode = (formData.zipCode || '').substring(0, 5);
         record.address_0_country = 'US';
@@ -230,57 +243,130 @@ function reconstructFHIR(flatData) {
     return fhir;
 }
 
+// Parse PATIENTFHIR.CS's pipe-delimited single-row output into the flat
+// record shape that reconstructFHIR() expects. Column order matches the
+// PRINT statement in PATIENTFHIR.CS.
+function parsePatientFhirLine(line) {
+    const p = line.split('|').map(s => s.trim());
+    if (p[0] === 'ERROR') return null;
+    return {
+        resourceType: 'Patient',
+        id: p[0],
+        active: 'true',
+        name_0_use: p[1],
+        name_0_family: p[2],
+        name_0_given_0: p[3],
+        gender: p[4],
+        birthDate: p[5],
+        telecom_0_system: p[6],
+        telecom_0_value: p[7],
+        telecom_0_use: p[8],
+        address_0_use: p[9],
+        address_0_type: p[10],
+        address_0_line_0: p[11],
+        address_0_city: p[12],
+        address_0_state: p[13],
+        address_0_postalCode: p[14],
+        address_0_country: p[15]
+    };
+}
+
 async function loadAndShowFHIR() {
     try {
         showMessage('Loading FHIR data from Chaprola...', 'info');
 
-        // Query the data back from Chaprola. See importFHIRData for the
-        // Authorization: Bearer <site_...> header rationale (was X-Site-Key,
-        // which the CORS preflight rejected).
-        const headers = {
-            'Content-Type': 'application/json'
-        };
+        // Route through PATIENTFHIR.CS via /report. The CS program is the
+        // declared feature (FHIR round-trip via server-side CS); previously
+        // the frontend bypassed it by calling /query directly. The program
+        // is scoped WHERE user_id EQ PARAM.user_id AND id EQ PARAM.id.
+        const doFetch = window.chaprolaAuth && window.chaprolaAuth.fetch
+            ? window.chaprolaAuth.fetch.bind(window.chaprolaAuth)
+            : fetch;
+        const qs = new URLSearchParams({
+            userid: USERNAME,
+            project: PROJECT,
+            name: 'PATIENTFHIR',
+            user_id: currentUserId(),
+            id: currentPatientId
+        }).toString();
+        const response = await doFetch(`${API_BASE}/report?${qs}`);
+        if (!response.ok) throw new Error(`PATIENTFHIR report failed (${response.status})`);
+        const text = (await response.text()).trim();
+        if (!text) throw new Error('No patient data returned');
 
-        if (SITE_KEY) {
-            headers['Authorization'] = 'Bearer ' + SITE_KEY;
-        }
+        const flat = parsePatientFhirLine(text.split('\n')[0]);
+        if (!flat) throw new Error('Not found or not authorized');
 
-        const response = await fetch(`${API_BASE}/query`, {
-            method: 'POST',
-            headers: headers,
-            body: JSON.stringify({
-                userid: USERNAME,
-                project: PROJECT,
-                file: 'PATIENTS',
-                where: [{ field: 'user_id', op: 'eq', value: currentUserId() }],
-                limit: 1,
-                order_by: [{field: 'id', dir: 'desc'}]
-            })
-        });
-
-        if (!response.ok) {
-            throw new Error('Failed to query patient data');
-        }
-
-        const result = await response.json();
-
-        if (result.results && result.results.length > 0) {
-            // Display the FHIR data
-            const patientData = result.results[0];
-
-            // Reconstruct FHIR format from flattened structure for display
-            const fhirDisplay = reconstructFHIR(patientData);
-
-            document.getElementById('fhir-json').textContent = JSON.stringify(fhirDisplay, null, 2);
-            showFHIRView();
-        } else {
-            throw new Error('No patient data found');
-        }
+        const fhirDisplay = reconstructFHIR(flat);
+        document.getElementById('fhir-json').textContent = JSON.stringify(fhirDisplay, null, 2);
+        showFHIRView();
 
     } catch (error) {
         console.error('Load FHIR error:', error);
         showMessage('Error loading FHIR data: ' + error.message, 'error');
     }
+}
+
+// Load the caller's patient roster via PATIENTLIST.CS and render a
+// simple table. Empty-state: prompt to submit a first patient.
+async function loadRoster() {
+    const listEl = document.getElementById('roster-table-body');
+    const emptyEl = document.getElementById('roster-empty');
+    if (!listEl) return;
+    listEl.innerHTML = '';
+    if (emptyEl) emptyEl.hidden = true;
+    try {
+        const doFetch = window.chaprolaAuth && window.chaprolaAuth.fetch
+            ? window.chaprolaAuth.fetch.bind(window.chaprolaAuth)
+            : fetch;
+        const qs = new URLSearchParams({
+            userid: USERNAME,
+            project: PROJECT,
+            name: 'PATIENTLIST',
+            user_id: currentUserId()
+        }).toString();
+        const resp = await doFetch(`${API_BASE}/report?${qs}`);
+        if (!resp.ok) throw new Error(`PATIENTLIST failed (${resp.status})`);
+        const text = await resp.text();
+        const lines = text.trim().split('\n').filter(l => l.trim());
+        // lines[0] is the header; lines[1..] are rows.
+        if (lines.length <= 1) {
+            if (emptyEl) emptyEl.hidden = false;
+            return;
+        }
+        for (let i = 1; i < lines.length; i++) {
+            const p = lines[i].split('|').map(s => s.trim());
+            const tr = document.createElement('tr');
+            tr.innerHTML = `
+                <td>${escHtml(p[0])}</td>
+                <td>${escHtml(p[2])} ${escHtml(p[1])}</td>
+                <td>${escHtml(p[3])}</td>
+                <td>${escHtml(p[4])}</td>
+                <td>${escHtml(p[5])}</td>
+                <td>${escHtml(p[6])}${p[7] ? ', ' + escHtml(p[7]) : ''}</td>
+                <td><button class="btn-view-patient" data-id="${escHtml(p[0])}">View FHIR</button></td>
+            `;
+            listEl.appendChild(tr);
+        }
+        listEl.querySelectorAll('.btn-view-patient').forEach(btn => {
+            btn.addEventListener('click', () => {
+                currentPatientId = btn.dataset.id;
+                loadAndShowFHIR();
+            });
+        });
+    } catch (err) {
+        console.error('Roster load failed', err);
+        if (emptyEl) {
+            emptyEl.hidden = false;
+            emptyEl.textContent = 'Could not load roster: ' + err.message;
+        }
+    }
+}
+
+function escHtml(s) {
+    return String(s == null ? '' : s)
+        .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
+        .replace(/"/g, '&quot;').replace(/'/g, '&#39;');
 }
 
 function showFormView() {

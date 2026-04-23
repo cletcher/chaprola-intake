@@ -213,9 +213,7 @@
         <strong>THIS IS A SAMPLE APP.</strong>
         Do <strong>not</strong> submit real patient data. Any information entered
         here is stored under a shared development account and is visible to the
-        developer. This is a technical demonstration of FHIR round-trip
-        serialization on Chaprola &mdash; it is not a production medical
-        intake system and has not been HIPAA-audited for this deployment.
+        developer.
     </div>
 
     <style>
@@ -347,10 +345,63 @@
 
             <div class="view-actions">
                 <button class="btn btn-primary" id="new-patient">New Patient</button>
+                <button class="btn btn-secondary" id="show-roster">View Roster</button>
             </div>
+        </div>
+
+        <div id="roster-view" class="view">
+            <div class="view-header">
+                <h2>Patient Roster</h2>
+                <button class="btn btn-secondary" id="back-to-form-from-roster">Back to Form</button>
+            </div>
+            <div class="fhir-info">
+                <p>Every patient you have submitted in this session. Scoped by your account.</p>
+            </div>
+            <table id="roster-table" class="roster-table">
+                <thead>
+                    <tr>
+                        <th>ID</th>
+                        <th>Name</th>
+                        <th>Gender</th>
+                        <th>Birth Date</th>
+                        <th>Phone</th>
+                        <th>City, State</th>
+                        <th></th>
+                    </tr>
+                </thead>
+                <tbody id="roster-table-body"></tbody>
+            </table>
+            <p id="roster-empty" hidden>No patients yet. Submit one via the form.</p>
+            <style>
+                .roster-table {
+                    width: 100%;
+                    border-collapse: collapse;
+                    margin-top: 1rem;
+                    font-size: 0.9rem;
+                }
+                .roster-table th,
+                .roster-table td {
+                    padding: 0.5rem 0.75rem;
+                    border-bottom: 1px solid #e2e8f0;
+                    text-align: left;
+                }
+                .roster-table thead th {
+                    background: #f8fafc;
+                    font-weight: 600;
+                }
+                .btn-view-patient {
+                    padding: 0.3rem 0.7rem;
+                    border: 1px solid #cbd5e1;
+                    background: #fff;
+                    border-radius: 4px;
+                    cursor: pointer;
+                    font-size: 0.85rem;
+                }
+                .btn-view-patient:hover { background: #f1f5f9; }
+            </style>
         </div>
     </div>
 
-    <script src="app.js?v=20260423-multiuser"></script>
+    <script src="app.js?v=20260423-intake"></script>
 </body>
 </html>
