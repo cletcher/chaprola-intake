@@ -1,0 +1,1 @@
+PATIENTLIST returns the authenticated caller's patient roster as pipe-delimited rows. Scoped by PARAM.user_id matching PATIENTS.user_id so each intake user sees only patients they submitted. Header + id|family|given|gender|birthDate|phone|city|state ordered by birthDate DESC. Used by the patient-list page of chaprola-intake.
